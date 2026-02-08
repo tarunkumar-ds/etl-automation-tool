@@ -7,10 +7,7 @@ from app.etl.extractor import extract_csv
 from app.etl.cleaner import clean_data
 from app.etl.transformer import transform_data
 from app.etl.reporter import generate_report
-
-app = FastAPI(title="ETL Automation Tool")
-
-# -------------------- CORS --------------------
+app = FastAPI(title="Simple ETL Tool")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,45 +15,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# -------------------- RUN ETL --------------------
 @app.post("/run-etl")
 async def run_etl(file: UploadFile = File(...)):
+
     try:
-        # Extract
         df = extract_csv(file.file)
-
-        # Clean
-        df, clean_report = clean_data(df)
-
-        # Transform
-        df = transform_data(df)
-
-        # Ensure output folder exists
+        cleaned_df, clean_report = clean_data(df)
+        final_df = transform_data(cleaned_df)
         os.makedirs("data/processed", exist_ok=True)
-
-        # Save cleaned file
         output_path = "data/processed/cleaned_data.csv"
-        df.to_csv(output_path, index=False)
-
+        final_df.to_csv(output_path, index=False)
         return generate_report(clean_report)
-
-    except Exception as e:
+    except Exception as error:
         return {
-            "status": "error",
-            "message": str(e)
+            "status": "failed",
+            "message": str(error)
         }
-
-# -------------------- DOWNLOAD CLEANED FILE --------------------
 @app.get("/download-cleaned")
-def download_cleaned_file():
+def download_cleaned():
+
     file_path = "data/processed/cleaned_data.csv"
 
     if not os.path.exists(file_path):
-        return {"error": "Cleaned file not found. Run ETL first."}
+        return {"error": "Please run ETL first."}
 
     return FileResponse(
         path=file_path,
         filename="cleaned_data.csv",
         media_type="text/csv"
     )
+
+
